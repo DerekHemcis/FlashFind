@@ -30,6 +30,8 @@ from .ui import SearchWindow, human_size, human_time
 from .watcher import Watcher
 
 HOTKEY_ID = 1
+# 索引引擎版本：扫描逻辑变更时 +1，旧索引会自动重建
+INDEX_ENGINE = "2"
 _ICON_CANDIDATES = ["flashfind/assets/icon.ico", "assets/icon.ico"]
 
 
@@ -332,11 +334,17 @@ class FlashFindApp:
         try:
             self.store.ensure_loaded()
             self._index_ready = self.store.ready
-            if self.store.count() == 0 or not self.store.ready:
-                # 首次运行：全盘建立索引
+            needs_rebuild = (
+                self.store.count() == 0
+                or not self.store.ready
+                or self.store.get_meta("index_engine") != INDEX_ENGINE
+            )
+            if needs_rebuild:
+                # 首次运行，或索引由旧版本引擎生成：全盘重建
                 self.indexer.start_background(
                     roots=self.cfg.get("roots") or detect_fixed_drives(), incremental=True
                 ).join()
+                self.store.set_meta("index_engine", INDEX_ENGINE)
                 self.store.ensure_loaded()
                 self._index_ready = True
             self._start_watcher()
