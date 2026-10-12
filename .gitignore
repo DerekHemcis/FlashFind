@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# PyInstaller
+build/
+dist/
+*.spec
+
+# 测试与临时产物
+tests/_ui_preview.png
+*.tmp
+*.log
+
+# IDE
+.idea/
+.vscode/
