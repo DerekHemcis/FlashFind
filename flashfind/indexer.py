@@ -63,9 +63,13 @@ class Indexer:
         return name_lower[dot:] in self.exclude_ext
 
     # ------------------------------------------------------------ 扫描
-    def _walk(self, root: str, emit) -> None:
-        """迭代式深度优先遍历一棵子树。emit(list_of_tuples) 用于交付批次。"""
-        stack = [root]
+    def _walk(self, root: str, emit, max_depth: int | None = None) -> None:
+        """迭代式深度优先遍历一棵子树。emit(list_of_tuples) 用于交付批次。
+
+        max_depth 限制下钻层数：根任务只收直接文件、不下钻，
+        子目录交给各自的独立任务，避免与根任务重复扫描。
+        """
+        stack = [(root, 0)]
         batch: list[tuple] = []
 
         def flush():
@@ -76,7 +80,7 @@ class Indexer:
         while stack:
             if self._stop.is_set():
                 return
-            cur = stack.pop()
+            cur, depth = stack.pop()
             try:
                 scanner = os.scandir(cur)
             except (PermissionError, FileNotFoundError, NotADirectoryError, OSError):
@@ -106,7 +110,8 @@ class Indexer:
                             continue
                         if self._skip_dir(low, path.lower()):
                             continue
-                        stack.append(path)
+                        if max_depth is None or depth + 1 <= max_depth:
+                            stack.append((path, depth + 1))
                         if self.index_dirs:
                             try:
                                 st = entry.stat(follow_symlinks=False)
@@ -129,14 +134,21 @@ class Indexer:
                         flush()
         flush()
 
-    def _split_tasks(self, roots: list[str]) -> list[str]:
-        """把根目录下的二级子目录拆成任务，提升并行度。"""
-        tasks: list[str] = []
+    def _split_tasks(self, roots: list[str]) -> list[tuple[str, int | None]]:
+        """把根目录拆成 (路径, 下钻深度) 任务。
+
+        盘符根只收直接文件（depth=1），一级子目录各自成为无限深度任务，
+        既保证并行度又不重复扫描。注意：'C:\' 绝不能写成 'C:' ——
+        后者在 Windows 上指向当前工作目录而非盘根。
+        """
+        tasks: list[tuple[str, int | None]] = []
         for root in roots:
-            root = str(root).rstrip("\\") or root
+            root = str(root)
+            if len(root) == 2 and root[1] == ":":
+                root += "\\"
             if not os.path.isdir(root):
                 continue
-            tasks.append(root)
+            tasks.append((root, 1))
             try:
                 for entry in os.scandir(root):
                     if self._stop.is_set():
@@ -148,7 +160,7 @@ class Indexer:
                         continue
                     if self._skip_dir(entry.name.lower(), entry.path.lower()):
                         continue
-                    tasks.append(entry.path)
+                    tasks.append((entry.path, None))
             except (PermissionError, OSError):
                 continue
         return tasks
@@ -167,11 +179,11 @@ class Indexer:
         def worker():
             while not self._stop.is_set():
                 try:
-                    task = tq.get_nowait()
+                    task_path, max_depth = tq.get_nowait()
                 except queue.Empty:
                     return
                 try:
-                    self._walk(task, emit)
+                    self._walk(task_path, emit, max_depth)
                 except Exception:
                     pass
                 finally:
