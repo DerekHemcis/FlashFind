@@ -31,7 +31,7 @@ from .watcher import Watcher
 
 HOTKEY_ID = 1
 # 索引引擎版本：扫描逻辑变更时 +1，旧索引会自动重建
-INDEX_ENGINE = "2"
+INDEX_ENGINE = "3"
 _ICON_CANDIDATES = ["flashfind/assets/icon.ico", "assets/icon.ico"]
 
 

@@ -166,24 +166,29 @@ class Config:
 
 
 def detect_fixed_drives() -> list[str]:
-    """返回本机所有固定磁盘的根路径，如 ['C:\\', 'D:\\']。"""
+    """返回本机所有固定磁盘的根路径，如 ['C:\\', 'D:\\']。
+
+    注意：GetLogicalDriveStringsW 返回 "C:\\<nul>D:\\<nul><nul>" 双 null 结尾，
+    不能用 create_unicode_buffer().value —— 它会在第一个 <nul> 截断，
+    导致 C 盘之后的磁盘全部丢失（D 盘消失的元凶）。
+    """
     drives = []
     if os.name != "nt":
         return [str(Path.home())]
     import ctypes
 
-    buf_len = 256
+    buf_len = 512
     buf = ctypes.create_unicode_buffer(buf_len)
     ctypes.windll.kernel32.GetLogicalDriveStringsW(buf_len, buf)
-    raw = buf.value
-    for part in raw.split("\x00"):
+    # wchar 数组没有 .value/.raw 能拿到完整内容，只能按 UTF-16LE 字节整体解码
+    text = bytes(buf).decode("utf-16-le", errors="ignore")
+    for part in text.split("\x00"):
         part = part.strip()
-        if not part:
-            continue
-        dtype = ctypes.windll.kernel32.GetDriveTypeW(ctypes.c_wchar_p(part))
-        # DRIVE_FIXED = 3
-        if dtype == 3:
-            drives.append(part)
+        if len(part) >= 2 and part[1] == ":":
+            dtype = ctypes.windll.kernel32.GetDriveTypeW(ctypes.c_wchar_p(part))
+            # DRIVE_FIXED = 3
+            if dtype == 3:
+                drives.append(part if part.endswith("\\") else part + "\\")
     return drives or ["C:\\"]
 
 
