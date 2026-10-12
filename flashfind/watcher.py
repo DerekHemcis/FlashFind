@@ -87,28 +87,35 @@ class Watcher:
                 )
                 if not ok:
                     break
-                self._parse(buf, returned.value, directory)
+                try:
+                    self._parse(buf, returned.value, directory)
+                except Exception:
+                    # 单条解析失败不能中断整个目录的监听
+                    continue
         finally:
             kernel32.CloseHandle(wintypes.HANDLE(handle))
 
     def _parse(self, buf, nbytes: int, base: str) -> None:
         if nbytes <= 0:
             return
-        raw = buf.raw[:nbytes]
+        # 关键：直接在稳定的缓冲区上做指针偏移。
+        # 之前用 create_string_buffer(raw[offset:]) 造临时对象再 cast，
+        # 临时对象随即被 GC，指针悬空 → access violation 崩溃。
+        base_addr = ctypes.addressof(buf)
+        rec_size = ctypes.sizeof(_FileNotifyInformation) - 2  # FileName[1] 是变长起点
         offset = 0
-        while offset < len(raw):
-            try:
-                entry = ctypes.cast(
-                    ctypes.byref(ctypes.create_string_buffer(raw[offset:], len(raw) - offset)),
-                    ctypes.POINTER(_FileNotifyInformation),
-                ).contents
-            except Exception:
-                return
+        while offset + rec_size <= nbytes:
+            entry = ctypes.cast(
+                base_addr + offset, ctypes.POINTER(_FileNotifyInformation)
+            ).contents
             nchars = entry.FileNameLength // 2
             if nchars <= 0:
                 break
-            addr = ctypes.addressof(entry) + _FileNotifyInformation.FileName.offset
-            name = ctypes.wstring_at(addr, nchars)
+            addr = base_addr + offset + _FileNotifyInformation.FileName.offset
+            try:
+                name = ctypes.wstring_at(addr, nchars)
+            except OSError:
+                break
             full = os.path.join(base, name)
             action = entry.Action
             with self._lock:
