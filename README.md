@@ -6,6 +6,11 @@
 
 让"文件资源管理器里搜不到文件"成为历史。
 
+[![Release](https://img.shields.io/github/v/release/DerekHemcis/FlashFind?style=flat-square&color=2F6FEB)](https://github.com/DerekHemcis/FlashFind/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/DerekHemcis/FlashFind/total?style=flat-square&color=23A26B)](https://github.com/DerekHemcis/FlashFind/releases/latest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Windows%2010%2F11-blue?style=flat-square)](https://github.com/DerekHemcis/FlashFind)
+
 </div>
 
 ## 为什么做这个
@@ -42,12 +47,15 @@ Windows 自带的文件搜索慢、索引不可控、AppData 一堆干扰。Flas
 
 ## 快速开始
 
-### 方式一：直接下载 exe（推荐）
+### 方式一：下载发布包（推荐）
 
-从 [Releases](../../releases) 下载 `FlashFind.zip`，解压后双击 `FlashFind.exe`：
+从 [Releases](https://github.com/DerekHemcis/FlashFind/releases/latest) 下载
+`FlashFind-v1.0.0-windows-x64.zip`（37.9 MB），解压后双击 `FlashFind.exe`：
 
-1. 首次启动自动在后台建立全盘索引（托盘可见进度，几分钟）
+1. 首次启动自动在后台建立全盘索引（托盘可见进度，实测 42 万文件约 2 分钟）
 2. 索引完成后按 `Ctrl+Alt+F` 唤起搜索
+
+绿色免安装，无需 .NET 与 Python 运行时。
 
 ### 方式二：源码运行
 
